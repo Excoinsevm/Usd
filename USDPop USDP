@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./IPriceFeed.sol";
+import "./IUniswapV2Router.sol";
+
+contract StableToken is ERC20, Ownable {
+    IPriceFeed public priceFeed;
+    IUniswapV2Router public uniswapRouter;
+    address public usdc; // Address of the USDC token
+
+    constructor(
+        address _priceFeed,
+        address _uniswapRouter,
+        address _usdc
+    ) ERC20("Stable Token", "STBL") {
+        priceFeed = IPriceFeed(_priceFeed);
+        uniswapRouter = IUniswapV2Router(_uniswapRouter);
+        usdc = _usdc;
+    }
+
+    function getTokenPrice() public view returns (int256) {
+        return priceFeed.latestAnswer();
+    }
+
+    function rebalance() public onlyOwner {
+        int256 price = getTokenPrice();
+        if (price > 1e8) { // Assuming price is returned with 8 decimals
+            uint256 amountToSell = (uint256(price) - 1e8) * totalSupply() / 1e8;
+            sellTokens(amountToSell);
+        } else if (price < 1e8) {
+            uint256 amountToBuy = (1e8 - uint256(price)) * totalSupply() / 1e8;
+            buyTokens(amountToBuy);
+        }
+    }
+
+    function sellTokens(uint256 amount) internal {
+        // Swap tokens for USDC
+        _approve(address(this), address(uniswapRouter), amount);
+        address [oai_citation:1,Error](data:text/plain;charset=utf-8,Unable%20to%20find%20metadata);
+        path[0] = address(this);
+        path[1] = usdc;
+        uniswapRouter.swapExactTokensForTokens(amount, 0, path, address(this), block.timestamp);
+    }
+
+    function buyTokens(uint256 amount) internal {
+        // Swap USDC for tokens
+        ERC20(usdc).approve(address(uniswapRouter), amount);
+        address [oai_citation:2,Error](data:text/plain;charset=utf-8,Unable%20to%20find%20metadata);
+        path[0] = usdc;
+        path[1] = address(this);
+        uniswapRouter.swapExactTokensForTokens(amount, 0, path, address(this), block.timestamp);
+    }
+}
